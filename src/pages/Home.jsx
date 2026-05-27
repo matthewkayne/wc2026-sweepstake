@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, Link } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { hashPassphrase } from '../lib/crypto'
 import Logo from '../components/Logo'
+import Footer from '../components/Footer'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -169,7 +170,18 @@ export default function Home() {
         <p className="mt-8 text-center text-xs text-slate-400">
           2026 FIFA World Cup · 48 teams · Free sweepstake
         </p>
+
+        <div className="mt-4 text-center">
+          <Link
+            to="/how-it-works"
+            className="text-xs text-slate-400 hover:text-blue-600 transition-colors underline underline-offset-2"
+          >
+            How it works →
+          </Link>
+        </div>
       </motion.div>
+
+      <Footer />
     </div>
   )
 }
