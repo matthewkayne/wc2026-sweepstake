@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
+import Footer from '../components/Footer'
 
 export default function Waiting() {
   const { sessionId } = useParams()
@@ -116,6 +117,8 @@ export default function Waiting() {
           )}
         </AnimatePresence>
       </motion.div>
+
+      <Footer />
     </div>
   )
 }
