@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
+import Footer from '../components/Footer'
 
 const AVATARS = ['⚽', '🏆', '🥅', '🎽', '👟', '🥇', '🎯', '🌍', '🔥', '⚡', '🦁', '🦅', '🐉', '🌟', '💎', '🎪']
 
@@ -86,18 +87,19 @@ export default function Join() {
 
   if (error && !session) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <div className="text-center">
           <p className="text-4xl mb-4">😕</p>
           <p className="font-bold text-slate-900">{error}</p>
         </div>
+        <Footer />
       </div>
     )
   }
 
   if (drawStarted) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -113,6 +115,7 @@ export default function Join() {
             Watch the results
           </button>
         </motion.div>
+        <Footer />
       </div>
     )
   }
@@ -179,6 +182,8 @@ export default function Join() {
           </button>
         </form>
       </motion.div>
+
+      <Footer />
     </div>
   )
 }
