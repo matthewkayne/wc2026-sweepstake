@@ -187,7 +187,7 @@ export default function Admin() {
         >
           <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Scan to join</p>
           <div className="p-3 bg-white border-2 border-slate-100 rounded-xl">
-            <QRCodeSVG value={joinUrl} size={200} fgColor="#1e3a8a" />
+            <QRCodeSVG value={joinUrl} size={200} fgColor="#042A4E" />
           </div>
           <button
             onClick={copyId}
