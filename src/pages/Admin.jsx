@@ -7,8 +7,6 @@ import { hashPassphrase } from '../lib/crypto'
 import { distributeTeams } from '../lib/distribution'
 import Logo from '../components/Logo'
 
-const AVATARS = ['⚽', '🏆', '🥅', '🎽', '👟', '🥇', '🎯', '🌍', '🔥', '⚡', '🦁', '🦅']
-
 export default function Admin() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -24,25 +22,20 @@ export default function Admin() {
   const [copied, setCopied] = useState(false)
 
   const channelRef = useRef(null)
+  const joinUrl = `${window.location.origin}/#/join/${sessionId}`
 
-  const joinUrl = `${window.location.origin}${window.location.pathname}#/join/${sessionId}`
-
-  // Check localStorage for admin token on mount
+  // Check localStorage for admin token on mount — only set auth state here,
+  // do NOT call loadSession() directly (the second effect handles that).
   useEffect(() => {
     const stored = localStorage.getItem(`admin_token_${sessionId}`)
-    if (stored) {
-      setAuthenticated(true)
-      loadSession()
-    }
+    if (stored) setAuthenticated(true)
   }, [sessionId])
 
   useEffect(() => {
     if (!authenticated) return
     loadSession()
     setupRealtime()
-    return () => {
-      channelRef.current?.unsubscribe()
-    }
+    return () => channelRef.current?.unsubscribe()
   }, [authenticated, sessionId])
 
   async function loadSession() {
@@ -68,13 +61,18 @@ export default function Admin() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'participants', filter: `session_id=eq.${sessionId}` },
-        payload => setParticipants(prev => [...prev, payload.new])
+        payload => setParticipants(prev => {
+          // Deduplicate in case of realtime replay
+          if (prev.find(p => p.id === payload.new.id)) return prev
+          return [...prev, payload.new]
+        })
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
         payload => {
           setSession(payload.new)
+          // Let the realtime event drive navigation after draw — avoids double-navigate
           if (payload.new.status === 'complete') navigate(`/results/${sessionId}`)
         }
       )
@@ -87,16 +85,21 @@ export default function Admin() {
     setAuthError('')
     try {
       const token = await hashPassphrase(passphrase)
-      const { data } = await supabase
+      const { data, error: err } = await supabase
         .from('sessions')
         .select('admin_token')
         .eq('id', sessionId)
         .single()
-      if (!data || data.admin_token !== token) throw new Error('Wrong passphrase')
+      if (err) throw new Error('network')
+      if (!data || data.admin_token !== token) throw new Error('wrong')
       localStorage.setItem(`admin_token_${sessionId}`, token)
       setAuthenticated(true)
-    } catch {
-      setAuthError('Wrong passphrase. Try again.')
+    } catch (err) {
+      setAuthError(
+        err.message === 'network'
+          ? 'Could not reach the server. Check your connection.'
+          : 'Wrong passphrase. Try again.'
+      )
     } finally {
       setAuthLoading(false)
     }
@@ -107,7 +110,6 @@ export default function Admin() {
     setDrawing(true)
     try {
       const assigned = distributeTeams(participants)
-      // Batch-update each participant's teams
       await Promise.all(
         assigned.map((p, i) =>
           supabase
@@ -116,11 +118,12 @@ export default function Admin() {
             .eq('id', p.id)
         )
       )
+      // Update session status — the realtime listener above handles navigation,
+      // so we don't call navigate() here to avoid a double push onto the history stack.
       await supabase
         .from('sessions')
         .update({ status: 'complete' })
         .eq('id', sessionId)
-      navigate(`/results/${sessionId}`)
     } catch (err) {
       console.error(err)
       setDrawing(false)
@@ -133,7 +136,6 @@ export default function Admin() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Auth wall
   if (!authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -171,7 +173,6 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-lg mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <Logo />
           <span className="text-xs font-semibold px-2 py-1 bg-blue-100 text-blue-700 rounded-full uppercase tracking-wide">
@@ -179,7 +180,6 @@ export default function Admin() {
           </span>
         </div>
 
-        {/* QR Code card */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -201,7 +201,6 @@ export default function Admin() {
           </p>
         </motion.div>
 
-        {/* Participants lobby */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -209,18 +208,12 @@ export default function Admin() {
           className="bg-white border-2 border-slate-100 rounded-2xl p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-slate-900">
-              Lobby
-            </h2>
-            <span className="text-sm font-semibold text-blue-700">
-              {participants.length} joined
-            </span>
+            <h2 className="font-bold text-slate-900">Lobby</h2>
+            <span className="text-sm font-semibold text-blue-700">{participants.length} joined</span>
           </div>
 
           {participants.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-6">
-              Waiting for players to scan…
-            </p>
+            <p className="text-sm text-slate-400 text-center py-6">Waiting for players to scan…</p>
           ) : (
             <div className="space-y-2">
               <AnimatePresence>
@@ -241,7 +234,6 @@ export default function Admin() {
           )}
         </motion.div>
 
-        {/* Draw button */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

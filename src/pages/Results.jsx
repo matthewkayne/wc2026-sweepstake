@@ -10,12 +10,13 @@ export default function Results() {
   const navigate = useNavigate()
   const [participants, setParticipants] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [resetting, setResetting] = useState(false)
   const channelRef = useRef(null)
 
-  const myId      = localStorage.getItem(`participant_id_${sessionId}`)
+  const myId       = localStorage.getItem(`participant_id_${sessionId}`)
   const adminToken = localStorage.getItem(`admin_token_${sessionId}`)
-  const isAdmin   = !!adminToken
+  const isAdmin    = !!adminToken
 
   useEffect(() => {
     supabase
@@ -23,16 +24,16 @@ export default function Results() {
       .select('*')
       .eq('session_id', sessionId)
       .order('pick_order', { ascending: true })
-      .then(({ data }) => {
-        if (!data) return
+      .then(({ data, error }) => {
+        // Always clear the spinner — even on error
+        setLoading(false)
+        if (error || !data) { setFetchError(true); return }
         const sorted = myId
           ? [...data.filter(p => p.id === myId), ...data.filter(p => p.id !== myId)]
           : data
         setParticipants(sorted)
-        setLoading(false)
       })
 
-    // If admin resets the draw, send everyone back to the waiting room
     channelRef.current = supabase
       .channel(`results-${sessionId}`)
       .on(
@@ -40,7 +41,7 @@ export default function Results() {
         { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
         payload => {
           if (payload.new.status === 'lobby') {
-            navigate(isAdmin ? `/admin/${sessionId}` : `/waiting/${sessionId}`)
+            navigate(isAdmin ? `/admin/${sessionId}` : `/waiting/${sessionId}`, { replace: true })
           }
         }
       )
@@ -52,19 +53,19 @@ export default function Results() {
   async function resetDraw() {
     setResetting(true)
     try {
-      // Clear team assignments from every participant
-      await supabase
-        .from('participants')
-        .update({ teams: null, pick_order: null })
-        .eq('session_id', sessionId)
-
-      // Reopen the lobby — this triggers the realtime listener above for all watchers
+      // Change session status FIRST — this triggers the realtime redirect for all watchers
+      // before they can see the "No teams" flash from the participant update below.
       await supabase
         .from('sessions')
         .update({ status: 'lobby' })
         .eq('id', sessionId)
 
-      navigate(`/admin/${sessionId}`)
+      await supabase
+        .from('participants')
+        .update({ teams: null, pick_order: null })
+        .eq('session_id', sessionId)
+
+      // Admin navigates via the realtime listener above, so no explicit navigate() here.
     } catch {
       setResetting(false)
     }
@@ -78,10 +79,28 @@ export default function Results() {
     )
   }
 
+  if (fetchError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-4xl mb-4">⚠️</p>
+          <p className="font-bold text-slate-900">Could not load results</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 text-sm text-blue-700 underline"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const totalTeams = participants.reduce((sum, p) => sum + (Array.isArray(p.teams) ? p.teams.length : 0), 0)
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-lg mx-auto">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -90,11 +109,10 @@ export default function Results() {
           <Logo size="lg" />
           <h1 className="mt-3 text-3xl font-black text-slate-900">The Draw</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {participants.length} player{participants.length !== 1 ? 's' : ''} · 48 teams assigned
+            {participants.length} player{participants.length !== 1 ? 's' : ''} · {totalTeams} team{totalTeams !== 1 ? 's' : ''} assigned
           </p>
         </motion.div>
 
-        {/* Admin reset banner */}
         {isAdmin && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -115,7 +133,6 @@ export default function Results() {
           </motion.div>
         )}
 
-        {/* Participant results */}
         <div className="space-y-4">
           {participants.map((p, pi) => {
             const isMe  = p.id === myId

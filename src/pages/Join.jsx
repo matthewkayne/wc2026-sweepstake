@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
@@ -15,8 +15,17 @@ export default function Join() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [session, setSession] = useState(null)
+  const [drawStarted, setDrawStarted] = useState(false)
+  const channelRef = useRef(null)
 
   useEffect(() => {
+    // If this device already joined this session, skip straight to waiting
+    const existingId = localStorage.getItem(`participant_id_${sessionId}`)
+    if (existingId) {
+      navigate(`/waiting/${sessionId}`, { replace: true })
+      return
+    }
+
     supabase
       .from('sessions')
       .select('status')
@@ -25,16 +34,41 @@ export default function Join() {
       .then(({ data }) => {
         if (!data) { setError('Session not found.'); return }
         setSession(data)
-        if (data.status === 'complete') navigate(`/results/${sessionId}`)
+        if (data.status === 'complete') navigate(`/results/${sessionId}`, { replace: true })
       })
+
+    // Watch for the draw starting while the user is mid-form
+    channelRef.current = supabase
+      .channel(`join-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
+        payload => {
+          if (payload.new.status === 'complete') setDrawStarted(true)
+        }
+      )
+      .subscribe()
+
+    return () => channelRef.current?.unsubscribe()
   }, [sessionId])
 
   async function join(e) {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim() || drawStarted) return
     setLoading(true)
     setError('')
     try {
+      // Re-check status at submit time to close the race window
+      const { data: sess } = await supabase
+        .from('sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .single()
+      if (sess?.status === 'complete') {
+        navigate(`/results/${sessionId}`, { replace: true })
+        return
+      }
+
       const { data, error: err } = await supabase
         .from('participants')
         .insert({ session_id: sessionId, name: name.trim(), avatar })
@@ -61,6 +95,28 @@ export default function Join() {
     )
   }
 
+  if (drawStarted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <p className="text-4xl mb-4">🎲</p>
+          <p className="font-black text-xl text-slate-900">The draw has started!</p>
+          <p className="mt-2 text-sm text-slate-500">You were too late to join this round.</p>
+          <button
+            onClick={() => navigate(`/results/${sessionId}`)}
+            className="mt-6 bg-blue-700 text-white font-bold px-6 py-3 rounded-xl"
+          >
+            Watch the results
+          </button>
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <motion.div
@@ -74,7 +130,6 @@ export default function Join() {
         <p className="mt-1 text-sm text-slate-500">Enter your name and pick an avatar.</p>
 
         <form onSubmit={join} className="mt-6 space-y-5">
-          {/* Name */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Your name</label>
             <input
@@ -88,7 +143,6 @@ export default function Join() {
             />
           </div>
 
-          {/* Avatar picker */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Pick an avatar</label>
             <div className="grid grid-cols-8 gap-2">
@@ -109,7 +163,6 @@ export default function Join() {
             </div>
           </div>
 
-          {/* Preview */}
           <div className="flex items-center gap-3 bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3">
             <span className="text-2xl">{avatar}</span>
             <span className="font-bold text-slate-900">{name || 'Your name'}</span>

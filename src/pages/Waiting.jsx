@@ -12,7 +12,16 @@ export default function Waiting() {
   const channelRef = useRef(null)
 
   useEffect(() => {
-    // Load current participants
+    // Check current session status on mount — handles page refresh after draw
+    supabase
+      .from('sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single()
+      .then(({ data }) => {
+        if (data?.status === 'complete') navigate(`/results/${sessionId}`, { replace: true })
+      })
+
     supabase
       .from('participants')
       .select('id, name, avatar')
@@ -20,7 +29,6 @@ export default function Waiting() {
       .order('created_at', { ascending: true })
       .then(({ data }) => setParticipants(data ?? []))
 
-    // Realtime: new joiners + session status change
     channelRef.current = supabase
       .channel(`waiting-${sessionId}`)
       .on(
@@ -84,7 +92,6 @@ export default function Waiting() {
                 <p className="mt-1 text-sm text-slate-500">The host will start the draw soon.</p>
               </div>
 
-              {/* Live participant list */}
               <div className="bg-white border-2 border-slate-100 rounded-2xl p-4 text-left">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
                   {participants.length} in the lobby
