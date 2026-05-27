@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { hashPassphrase } from '../lib/crypto'
 import { distributeTeams } from '../lib/distribution'
 import Logo from '../components/Logo'
+import Footer from '../components/Footer'
 
 export default function Admin() {
   const { sessionId } = useParams()
@@ -138,7 +139,7 @@ export default function Admin() {
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -166,6 +167,7 @@ export default function Admin() {
             </button>
           </form>
         </motion.div>
+        <Footer />
       </div>
     )
   }
@@ -252,6 +254,8 @@ export default function Admin() {
             </p>
           )}
         </motion.div>
+
+        <Footer />
       </div>
     </div>
   )
