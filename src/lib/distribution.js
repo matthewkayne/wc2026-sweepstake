@@ -1,30 +1,27 @@
 import { TEAMS } from './teams'
 
-// Snake-draft distribution.
-// Best pick slot gets rank 1 (Argentina), but also the worst "tail" teams.
-// Middle pick slots get two mid-ranked teams.
-// This matches the sweepstake brief: some get 1 good team, others get 2 worse ones.
 export function distributeTeams(participants) {
   const n = participants.length
   if (n === 0) return []
 
   const sortedTeams = [...TEAMS].sort((a, b) => a.fifaRank - b.fifaRank)
 
-  // Randomly assign each participant a pick slot (0-indexed)
+  // Only use the top-ranked n*2 teams — worst-ranked left unassigned
+  const teamsToUse = sortedTeams.slice(0, Math.min(n * 2, sortedTeams.length))
+
   const shuffled = [...participants]
     .map(p => ({ ...p, _r: Math.random() }))
     .sort((a, b) => a._r - b._r)
 
-  // Initialise per-slot team buckets
   const teamsBySlot = Array.from({ length: n }, () => [])
 
   let teamIdx = 0
   let round = 0
-  while (teamIdx < sortedTeams.length) {
+  while (teamIdx < teamsToUse.length) {
     const forward = round % 2 === 0
-    for (let i = 0; i < n && teamIdx < sortedTeams.length; i++) {
+    for (let i = 0; i < n && teamIdx < teamsToUse.length; i++) {
       const slot = forward ? i : n - 1 - i
-      teamsBySlot[slot].push(sortedTeams[teamIdx])
+      teamsBySlot[slot].push(teamsToUse[teamIdx])
       teamIdx++
     }
     round++
