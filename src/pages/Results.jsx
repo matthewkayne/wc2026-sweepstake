@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import TeamCard from '../components/TeamCard'
 import Logo from '../components/Logo'
+import Footer from '../components/Footer'
 
 export default function Results() {
   const { sessionId } = useParams()
@@ -81,7 +82,7 @@ export default function Results() {
 
   if (fetchError) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <div className="text-center">
           <p className="text-4xl mb-4">⚠️</p>
           <p className="font-bold text-slate-900">Could not load results</p>
@@ -92,6 +93,7 @@ export default function Results() {
             Try again
           </button>
         </div>
+        <Footer />
       </div>
     )
   }
@@ -186,6 +188,8 @@ export default function Results() {
         >
           Good luck everyone! 🏆
         </motion.p>
+
+        <Footer />
       </div>
     </div>
   )
